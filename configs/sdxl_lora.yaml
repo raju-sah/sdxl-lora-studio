@@ -1,16 +1,39 @@
 base_model: stabilityai/stable-diffusion-xl-base-1.0
 vae: madebyollin/sdxl-vae-fp16-fix
-trigger: sks_dog          # TBD after /grill-me
-instance_prompt: a photo of sks_dog
+concept_type: style
+concept_name: Mithila / Madhubani traditional folk painting
+trigger: sks_mithila
+instance_prompt: in sks_mithila style
+captioner_model: microsoft/Florence-2-base
+captioner_task: "<DETAILED_CAPTION>"
 resolution: 1024
 train_batch_size: 1
 gradient_accumulation_steps: 4
 learning_rate: 1.0e-4
-rank: 16
+lr_scheduler: cosine
+lr_warmup_steps: 100
+snr_gamma: 5.0
+rank: 32
+train_text_encoder: false
 max_train_steps: 1500
 checkpointing_steps: 250
 mixed_precision: fp16
+gradient_checkpointing: true
+use_8bit_adam: true
 seed: 42
+dataset:
+  target_count: 30
+  min_side: 512
+  kaggle_slug: rajucode/mithila-lora-images
 eval:
-  seeds: [0, 1, 2, 3]
-  checkpoints: [250, 500, 750, 1000, 1250, 1500]
+  grid_seed: 0
+  seeds: [0, 1]
+  checkpoints: [0, 250, 500, 750, 1000, 1250, 1500]
+  clip_model: openai/clip-vit-large-patch14
+  dino_model: facebook/dinov2-base
+  num_inference_steps: 25
+  guidance_scale: 7.5
+hosting:
+  hf_model_id: rajucode/sdxl-mithila-lora
+  hf_space_id: rajucode/sdxl-mithila-lora-space
+  default_lora_scale: 0.85
