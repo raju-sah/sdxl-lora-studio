@@ -1,0 +1,23 @@
+[project]
+name = "lora_studio"
+version = "0.1.0"
+description = "SDXL LoRA training + evaluation on a free Kaggle T4"
+requires-python = ">=3.10"
+dependencies = ["pillow", "pyyaml"]
+
+[project.optional-dependencies]
+train = ["diffusers", "transformers", "accelerate", "peft", "bitsandbytes", "torch"]
+eval = ["open_clip_torch", "torchmetrics"]
+demo = ["gradio"]
+dev = ["pytest", "ruff"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
