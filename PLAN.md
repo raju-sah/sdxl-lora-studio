@@ -41,9 +41,9 @@ own sketch style) from 10–50 images.
       to 1024², drop blurry/duplicates) → `data/processed/`. Upload as Kaggle dataset (`buggeddev/mithila-lora-images`):
       `kaggle datasets create -p data/processed` (metadata in `data/dataset-metadata.json`).
 - [x] 2. **Caption** (`caption.py`): auto-caption with `Florence-2-base`, strip style words, prepend `in sks_mithila style, `, write `.txt` + `metadata.jsonl`, and inspect/hand-edit.
-- [ ] 3. **Train** on Kaggle (`kaggle/train/`, `scripts/train_sdxl_lora.sh`):
+- [x] 3. **Train** on Kaggle (`kaggle/train/`, `scripts/train_sdxl_lora.sh`):
   ```bash
-  accelerate launch train_dreambooth_lora_sdxl.py \
+  accelerate launch --num_processes=1 train_dreambooth_lora_sdxl.py \
     --pretrained_model_name_or_path=stabilityai/stable-diffusion-xl-base-1.0 \
     --pretrained_vae_model_name_or_path=madebyollin/sdxl-vae-fp16-fix \
     --dataset_name=/kaggle/input/mithila-lora-images --caption_column=text \
@@ -53,12 +53,11 @@ own sketch style) from 10–50 images.
     --snr_gamma=5.0 --rank=32 --max_train_steps=1500 \
     --mixed_precision=fp16 --gradient_checkpointing --use_8bit_adam \
     --checkpointing_steps=250 \
-    --validation_prompt="in sks_mithila style, two peacocks perched on a flowering tree branch with lotus blossoms and a geometric border" \
     --output_dir=/kaggle/working/lora --seed=42
   ```
-- [ ] 4. **Evaluate** (`grid.py`, `metrics.py`): fixed grid (6 prompts in `prompts/eval_prompts.txt` across 2 traditional, 2 regional, and 2 OOD scenes) at each checkpoint `250/500/750/1000/1250/1500` **and** base SDXL (`0`) without LoRA.
-      Compute **CLIP content score** (prompt adherence with style prefix stripped) and **DINOv2 similarity** to training images (style fidelity) across 2 seeds `[0, 1]` (seed `0` for visual grid) to catch overfitting and pick the Pareto-optimal checkpoint.
-- [ ] 5. **Host**: Upload best LoRA checkpoint to HF Hub (`sdxl-mithila-lora`) with model card + sample images; build Gradio Space demo (`space/app.py`, `@spaces.GPU` ZeroGPU with CPU-offload fallback and LoRA scale slider `0.0–1.2`).
+- [x] 4. **Evaluate** (`grid.py`, `metrics.py`): fixed grid (6 prompts in `prompts/eval_prompts.txt` across 2 traditional, 2 regional, and 2 OOD scenes) at each checkpoint `250/500/750/1000/1250/1500` **and** base SDXL (`0`) without LoRA.
+      Compute **CLIP content score** (prompt adherence with style prefix stripped) and **DINOv2 similarity** to training images (style fidelity) across 2 seeds `[0, 1]` (seed `0` for visual grid) to catch overfitting and pick the Pareto-optimal checkpoint. Winner: **`ckpt-750`** (CLIP `0.2666`, DINOv2 `0.3949`).
+- [ ] 5. **Host**: Upload best LoRA checkpoint to HF Hub (`raju-ai/sdxl-mithila-lora`) with model card + sample images; build Gradio Space demo (`space/app.py`, `@spaces.GPU` ZeroGPU with CPU-offload fallback and LoRA scale slider `0.0–1.2`).
 
 ## Definition of done
 

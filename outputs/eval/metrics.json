@@ -1,0 +1,53 @@
+{
+  "best_checkpoint": 750,
+  "best_metrics": {
+    "checkpoint": 750,
+    "clip_content_score": 0.2665959658722083,
+    "dino_style_similarity": 0.3948967680335045,
+    "dino_max_nn": 0.6317096203565598
+  },
+  "checkpoints": [
+    {
+      "checkpoint": 0,
+      "clip_content_score": 0.29614875713984173,
+      "dino_style_similarity": 0.18654242095847925,
+      "dino_max_nn": 0.3955552267531554
+    },
+    {
+      "checkpoint": 250,
+      "clip_content_score": 0.2718394895394643,
+      "dino_style_similarity": 0.37276412670811016,
+      "dino_max_nn": 0.5944620420535406
+    },
+    {
+      "checkpoint": 500,
+      "clip_content_score": 0.25005325054128963,
+      "dino_style_similarity": 0.35444772243499756,
+      "dino_max_nn": 0.5936719502011935
+    },
+    {
+      "checkpoint": 750,
+      "clip_content_score": 0.2665959658722083,
+      "dino_style_similarity": 0.3948967680335045,
+      "dino_max_nn": 0.6317096203565598
+    },
+    {
+      "checkpoint": 1000,
+      "clip_content_score": 0.2587800237039725,
+      "dino_style_similarity": 0.36940010140339535,
+      "dino_max_nn": 0.604258564611276
+    },
+    {
+      "checkpoint": 1250,
+      "clip_content_score": 0.2567652277648449,
+      "dino_style_similarity": 0.39565197626749676,
+      "dino_max_nn": 0.6262764856219292
+    },
+    {
+      "checkpoint": 1500,
+      "clip_content_score": 0.2640512113769849,
+      "dino_style_similarity": 0.38136591389775276,
+      "dino_max_nn": 0.6214443122347196
+    }
+  ]
+}

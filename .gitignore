@@ -16,7 +16,9 @@ data/*
 !data/README.md
 !data/sources.csv
 !data/dataset-metadata.json
-outputs/
+outputs/*
+!outputs/eval/
+!outputs/eval/**
 checkpoints/
 wandb/
 *.safetensors

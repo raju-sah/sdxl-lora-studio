@@ -18,7 +18,7 @@ Running log of decisions, findings, and gotchas. Newest first.
 
 | Date | Run | Steps | Rank | LR | GPU h | Best ckpt | Notes |
 |---|---|---|---|---|---|---|---|
-| | | | | | | | |
+| 2026-10-28 | `buggeddev/sdxl-lora-train` (v3) | 1,500 | 32 | 1e-4 | ~5.3 h | `ckpt-750` | Full 1500-step training + 84-image eval sweep (7 ckpts x 6 prompts x 2 seeds) + CLIP & DINOv2 scoring on Kaggle T4. Checkpoint 750 achieved optimal balance (CLIP 0.2666, DINOv2 0.3949, NN 0.6317) before background saturation. |
 
 ## Reference notes
 
