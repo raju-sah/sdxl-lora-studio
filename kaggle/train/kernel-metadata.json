@@ -1,5 +1,5 @@
 {
-  "id": "rajucode/sdxl-lora-train",
+  "id": "buggeddev/sdxl-lora-train",
   "title": "sdxl-lora-train",
   "code_file": "train.py",
   "language": "python",
@@ -8,7 +8,7 @@
   "enable_gpu": true,
   "enable_internet": true,
   "machine_shape": "NvidiaTeslaT4",
-  "dataset_sources": ["rajucode/mithila-lora-images"],
+  "dataset_sources": ["buggeddev/mithila-lora-images"],
   "model_sources": [],
   "competition_sources": [],
   "kernel_sources": []

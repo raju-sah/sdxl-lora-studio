@@ -37,10 +37,10 @@ own sketch style) from 10–50 images.
 
 ## Steps
 
-- [ ] 1. **Collect & clean** images → `data/raw/` + `data/sources.csv`. Run `src/lora_studio/prepare.py` (crop/resize
-      to 1024², drop blurry/duplicates) → `data/processed/`. Upload as Kaggle dataset (`rajucode/mithila-lora-images`):
+- [x] 1. **Collect & clean** images → `data/raw/` + `data/sources.csv`. Run `src/lora_studio/prepare.py` (crop/resize
+      to 1024², drop blurry/duplicates) → `data/processed/`. Upload as Kaggle dataset (`buggeddev/mithila-lora-images`):
       `kaggle datasets create -p data/processed` (metadata in `data/dataset-metadata.json`).
-- [ ] 2. **Caption** (`caption.py`): auto-caption with `Florence-2-base`, strip style words, prepend `in sks_mithila style, `, write `.txt` + `metadata.jsonl`, and inspect/hand-edit.
+- [x] 2. **Caption** (`caption.py`): auto-caption with `Florence-2-base`, strip style words, prepend `in sks_mithila style, `, write `.txt` + `metadata.jsonl`, and inspect/hand-edit.
 - [ ] 3. **Train** on Kaggle (`kaggle/train/`, `scripts/train_sdxl_lora.sh`):
   ```bash
   accelerate launch train_dreambooth_lora_sdxl.py \

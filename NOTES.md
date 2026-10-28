@@ -33,4 +33,6 @@ Running log of decisions, findings, and gotchas. Newest first.
 
 ## Gotchas
 
-- _(fill in as you hit them)_
+- **Hugging Face `imagefolder` mixed-file error:** When using `--dataset_name=/path/to/local/dir` with `metadata.jsonl`, the directory must contain *only* the image files (`*.png`) and `metadata.jsonl`. Leaving `.txt` sidecar files or `dataset-metadata.json` in the same folder causes `datasets.load_dataset` to fail with a mixed-filetype error. `kaggle/train/train.py` filters to `*.png` + `metadata.jsonl` when copying `/kaggle/input` to `/kaggle/working/dataset`.
+- **End-of-training `--validation_prompt` OOM on 16 GB T4:** In `train_dreambooth_lora_sdxl.py`, passing `--validation_prompt` instantiates a full `StableDiffusionXLPipeline` while the training UNet and 8-bit Adam states are still resident in GPU memory, risking an OOM at step 1,500. Running our evaluation grid (`evaluate_checkpoints_inline`) *after* the `accelerate launch` subprocess exits frees all 16 GB of T4 VRAM first.
+- **V&A Museum IIIF calibration bars:** Raw V&A Museum scans include studio color calibration bars along the outer margins; `fetch.py` crops an `19%` inset box on V&A scans so SDXL does not learn to draw calibration bars around `sks_mithila` artworks.

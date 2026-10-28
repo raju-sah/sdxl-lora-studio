@@ -24,7 +24,7 @@ seed: 42
 dataset:
   target_count: 30
   min_side: 512
-  kaggle_slug: rajucode/mithila-lora-images
+  kaggle_slug: buggeddev/mithila-lora-images
 eval:
   grid_seed: 0
   seeds: [0, 1]
@@ -34,6 +34,6 @@ eval:
   num_inference_steps: 25
   guidance_scale: 7.5
 hosting:
-  hf_model_id: rajucode/sdxl-mithila-lora
-  hf_space_id: rajucode/sdxl-mithila-lora-space
+  hf_model_id: raju-ai/sdxl-mithila-lora
+  hf_space_id: raju-ai/sdxl-mithila-lora-space
   default_lora_scale: 0.85
