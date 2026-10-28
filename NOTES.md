@@ -33,6 +33,7 @@ Running log of decisions, findings, and gotchas. Newest first.
 
 ## Gotchas
 
+- **Kaggle pre-installed `torchao==0.10.0` breaking PEFT imports:** Kaggle ships with `torchao==0.10.0`, but PEFT checks `is_torchao_available()` and raises `ImportError: Found an incompatible version of torchao... only versions above 0.16.0 are supported` even when torchao is unused. Solved by running `pip uninstall -y torchao` during environment setup.
 - **`transformers` >= 4.49 removing `FLAX_WEIGHTS_NAME`:** In `diffusers` <= 0.32.2, `diffusers.pipelines.pipeline_loading_utils` imports `FLAX_WEIGHTS_NAME` from `transformers.utils`. In `transformers` >= 4.49, this symbol was removed, breaking diffusers imports. Fixed by pinning `transformers>=4.45.0,<=4.48.3` and injecting an import fallback polyfill into `train_dreambooth_lora_sdxl.py`.
 - **`accelerate launch` default multi-GPU on 2x T4:** On Kaggle environments with 2 GPUs available, `accelerate launch` defaults to `--num_processes=2` if not specified, causing multi-GPU distributed failures with single-GPU hyperparameters. Explicitly pass `--num_processes=1`.
 - **Hugging Face `imagefolder` mixed-file error:** When using `--dataset_name=/path/to/local/dir` with `metadata.jsonl`, the directory must contain *only* the image files (`*.png`) and `metadata.jsonl`. Leaving `.txt` sidecar files or `dataset-metadata.json` in the same folder causes `datasets.load_dataset` to fail with a mixed-filetype error. `kaggle/train/train.py` filters to `*.png` + `metadata.jsonl` when copying `/kaggle/input` to `/kaggle/working/dataset`.

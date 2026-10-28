@@ -41,6 +41,12 @@ def run_cmd(cmd: list[str], env: dict[str, str] | None = None) -> None:
 
 def setup_environment(work_dir: Path) -> Path:
     """Install dependencies and fetch the pinned diffusers DreamBooth-LoRA SDXL script."""
+    # Uninstall incompatible Kaggle torchao pre-install which breaks peft import_utils
+    try:
+        run_cmd([sys.executable, "-m", "pip", "uninstall", "-y", "torchao"])
+    except Exception:  # noqa: BLE001, S110
+        pass
+
     run_cmd(
         [
             sys.executable,
@@ -80,6 +86,14 @@ def setup_environment(work_dir: Path) -> Path:
     )
     if "FLAX_WEIGHTS_NAME = 'flax_model.msgpack'" not in content:
         script_path.write_text(patch + content, encoding="utf-8")
+
+    # Smoke test core imports before launching accelerate
+    smoke_cmd = (
+        "import diffusers, peft, transformers; "
+        "from diffusers import StableDiffusionXLPipeline, UNet2DConditionModel; "
+        "print('Verified diffusers, peft, and transformers imports successfully!')"
+    )
+    run_cmd([sys.executable, "-c", smoke_cmd])
 
     return script_path
 
