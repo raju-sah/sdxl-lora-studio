@@ -11,7 +11,7 @@ set -euo pipefail
 : "${WARMUP:=100}"
 : "${SNR_GAMMA:=5.0}"
 
-accelerate launch train_dreambooth_lora_sdxl.py \
+accelerate launch --num_processes=1 train_dreambooth_lora_sdxl.py \
   --pretrained_model_name_or_path=stabilityai/stable-diffusion-xl-base-1.0 \
   --pretrained_vae_model_name_or_path=madebyollin/sdxl-vae-fp16-fix \
   --dataset_name="$DATA_DIR" --caption_column=text \

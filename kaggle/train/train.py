@@ -52,15 +52,35 @@ def setup_environment(work_dir: Path) -> Path:
             "peft>=0.13.0",
             "bitsandbytes>=0.44.0",
             "accelerate>=1.0.0",
-            "transformers>=4.45.0",
+            "transformers>=4.45.0,<=4.48.3",
             "datasets>=3.0.0",
             "safetensors>=0.4.5",
             "huggingface_hub>=0.26.0",
         ]
     )
+    # Monkey-patch in current process
+    try:
+        import transformers.utils
+
+        if not hasattr(transformers.utils, "FLAX_WEIGHTS_NAME"):
+            transformers.utils.FLAX_WEIGHTS_NAME = "flax_model.msgpack"
+    except Exception:  # noqa: BLE001, S110
+        pass
+
     script_path = work_dir / "train_dreambooth_lora_sdxl.py"
     if not script_path.exists():
         urllib.request.urlretrieve(TRAIN_SCRIPT_URL, script_path)
+
+    # Prepend FLAX_WEIGHTS_NAME polyfill to the downloaded training script
+    content = script_path.read_text(encoding="utf-8")
+    patch = (
+        "import transformers.utils\n"
+        "if not hasattr(transformers.utils, 'FLAX_WEIGHTS_NAME'):\n"
+        "    transformers.utils.FLAX_WEIGHTS_NAME = 'flax_model.msgpack'\n"
+    )
+    if "FLAX_WEIGHTS_NAME = 'flax_model.msgpack'" not in content:
+        script_path.write_text(patch + content, encoding="utf-8")
+
     return script_path
 
 
@@ -118,6 +138,7 @@ def main() -> None:
     train_cmd = [
         "accelerate",
         "launch",
+        "--num_processes=1",
         "--mixed_precision=fp16",
         str(script_path),
         "--pretrained_model_name_or_path=stabilityai/stable-diffusion-xl-base-1.0",
