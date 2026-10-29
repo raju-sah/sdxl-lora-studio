@@ -4,7 +4,5 @@ accelerate>=1.0.0
 torch
 torchvision
 safetensors>=0.4.5
-gradio>=5.0.0
-gradio-client>=2.7.0
 spaces
 peft>=0.13.0
