@@ -16,6 +16,8 @@ from pathlib import Path
 
 from PIL import Image
 
+from lora_studio.config import load_config
+
 EXTS = {".png", ".jpg", ".jpeg", ".webp"}
 
 # Leading boilerplate phrases produced by Florence-2 / BLIP captioners.
@@ -175,11 +177,12 @@ def caption_dir(
 
 
 if __name__ == "__main__":
+    cfg = load_config()
     ap = argparse.ArgumentParser(description="Auto-caption processed images for SDXL Style LoRA.")
     ap.add_argument("img_dir", type=Path, help="Directory of processed 1024x1024 images")
-    ap.add_argument("--trigger", type=str, default="in sks_mithila style", help="Trigger prefix")
-    ap.add_argument("--model", type=str, default="microsoft/Florence-2-base", help="VLM model ID")
-    ap.add_argument("--task", type=str, default="<DETAILED_CAPTION>", help="Florence-2 task prompt")
+    ap.add_argument("--trigger", type=str, default=str(cfg.get("instance_prompt", "in sks_mithila style")), help="Trigger prefix")
+    ap.add_argument("--model", type=str, default=str(cfg.get("captioner_model", "microsoft/Florence-2-base")), help="VLM model ID")
+    ap.add_argument("--task", type=str, default=str(cfg.get("captioner_task", "<DETAILED_CAPTION>")), help="Florence-2 task prompt")
     ap.add_argument("--no-overwrite", action="store_true", help="Skip images that already have a .txt file")
     ap.add_argument("--sync-only", action="store_true", help="Rebuild metadata.jsonl from existing .txt files")
     a = ap.parse_args()

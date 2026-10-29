@@ -14,6 +14,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from lora_studio.config import load_config
 from lora_studio.grid import load_prompts
 
 
@@ -27,33 +28,67 @@ def strip_trigger_prefix(prompt: str, trigger_prefix: str = "in sks_mithila styl
 
 
 def select_best_checkpoint(results: list[dict], clip_drop_tolerance: float = 0.025) -> dict:
-    """Pick the LoRA checkpoint with highest balanced CLIP content + DINOv2 style score before overfitting.
+    """Pick the LoRA checkpoint with highest min-max normalized CLIP content + DINOv2 style score.
 
     Overfitting is flagged when a checkpoint's CLIP content score drops by more than
     ``clip_drop_tolerance`` relative to the peak LoRA CLIP score, or when ``dino_max_nn`` > 0.88.
+    Both metrics are min-max normalized across all LoRA checkpoints before applying the
+    0.55 (content) / 0.45 (style) Pareto weighting so neither metric's raw scale dominates.
     """
     lora_rows = [r for r in results if int(r.get("checkpoint", 0)) > 0]
     if not lora_rows:
         return results[0] if results else {}
 
-    peak_clip = max(r["clip_content_score"] for r in lora_rows)
+    peak_clip = max(float(r["clip_content_score"]) for r in lora_rows)
     candidates = [
         r
         for r in lora_rows
-        if r["clip_content_score"] >= (peak_clip - clip_drop_tolerance) and r.get("dino_max_nn", 0.0) <= 0.88
+        if float(r["clip_content_score"]) >= (peak_clip - clip_drop_tolerance)
+        and float(r.get("dino_max_nn", 0.0)) <= 0.88
     ]
     if not candidates:
         candidates = lora_rows
 
-    # Combined score: weight content adherence (0.55) + style fidelity (0.45)
-    return max(
-        candidates,
-        key=lambda r: 0.55 * float(r["clip_content_score"]) + 0.45 * float(r["dino_style_similarity"]),
-    )
+    clip_vals = [float(r["clip_content_score"]) for r in lora_rows]
+    dino_vals = [float(r["dino_style_similarity"]) for r in lora_rows]
+    c_min, c_max = min(clip_vals), max(clip_vals)
+    d_min, d_max = min(dino_vals), max(dino_vals)
+    c_span = (c_max - c_min) if c_max > c_min else 1.0
+    d_span = (d_max - d_min) if d_max > d_min else 1.0
+
+    def _pareto_score(row: dict) -> float:
+        norm_clip = (float(row["clip_content_score"]) - c_min) / c_span
+        norm_dino = (float(row["dino_style_similarity"]) - d_min) / d_span
+        return 0.55 * norm_clip + 0.45 * norm_dino
+
+    return max(candidates, key=_pareto_score)
+
+
+def annotate_checkpoint_statuses(results: list[dict], best_ckpt: int) -> None:
+    """Annotate each checkpoint row in ``results`` with a human-readable training stage status."""
+    best_row = next((r for r in results if int(r["checkpoint"]) == best_ckpt), None)
+    best_clip = float(best_row["clip_content_score"]) if best_row else 0.0
+
+    for r in results:
+        ckpt = int(r["checkpoint"])
+        if ckpt == 0:
+            r["status"] = "Baseline"
+        elif ckpt == best_ckpt:
+            r["status"] = "⭐ **Selected Best**"
+        elif ckpt < best_ckpt:
+            r["status"] = "Underfit / warming up" if ckpt <= 250 else "Good"
+        else:
+            if float(r.get("dino_max_nn", 0.0)) > 0.88 or float(r["clip_content_score"]) < best_clip - 0.015:
+                r["status"] = "⚠️ Overfitting (CLIP drop)"
+            elif ckpt >= 1500:
+                r["status"] = "Late-stage saturation"
+            else:
+                r["status"] = "Good"
 
 
 def format_metrics_markdown(results: list[dict], best_ckpt: int) -> str:
     """Render a GitHub-flavored Markdown table summarizing CLIP & DINOv2 scores per checkpoint."""
+    annotate_checkpoint_statuses(results, best_ckpt=best_ckpt)
     lines = [
         "| Checkpoint | CLIP Content Score ↑ | DINOv2 Style Sim ↑ | DINOv2 Max-NN (Memorization) | Status |",
         "|---|---:|---:|---:|---|",
@@ -61,7 +96,7 @@ def format_metrics_markdown(results: list[dict], best_ckpt: int) -> str:
     for r in results:
         ckpt = int(r["checkpoint"])
         label = "Base SDXL (0)" if ckpt == 0 else f"`ckpt-{ckpt}`"
-        status = "Baseline" if ckpt == 0 else ("⭐ **Selected Best**" if ckpt == best_ckpt else r.get("status", "OK"))
+        status = r.get("status", "OK")
         lines.append(
             f"| {label} | {r['clip_content_score']:.4f} | {r['dino_style_similarity']:.4f} | "
             f"{r.get('dino_max_nn', 0.0):.4f} | {status} |"
@@ -193,16 +228,6 @@ def score_all_checkpoints(
     best = select_best_checkpoint(results)
     best_ckpt = int(best.get("checkpoint", 0))
 
-    # Annotate overfitting status on late checkpoints
-    peak_clip = max((r["clip_content_score"] for r in results if r["checkpoint"] > 0), default=0.0)
-    for r in results:
-        if r["checkpoint"] > best_ckpt and r["clip_content_score"] < peak_clip - 0.015:
-            r["status"] = "⚠️ Overfitting (CLIP drop)"
-        elif r["checkpoint"] < best_ckpt and r["checkpoint"] > 0:
-            r["status"] = "Underfit / warming up"
-        else:
-            r["status"] = "Good"
-
     md_table = format_metrics_markdown(results, best_ckpt=best_ckpt)
     summary = {
         "best_checkpoint": best_ckpt,
@@ -217,9 +242,21 @@ def score_all_checkpoints(
 
 
 if __name__ == "__main__":
+    cfg = load_config()
+    eval_cfg = cfg.get("eval", {})
     ap = argparse.ArgumentParser(description="Score checkpoints with CLIP and DINOv2.")
     ap.add_argument("--eval-dir", type=Path, default=Path("outputs/eval"), help="Directory of ckpt-* folders")
     ap.add_argument("--train-dir", type=Path, default=Path("data/processed"), help="Processed training images directory")
     ap.add_argument("--prompts", type=Path, default=Path("prompts/eval_prompts.txt"), help="Eval prompts file")
+    ap.add_argument("--clip-model", type=str, default=str(eval_cfg.get("clip_model", "openai/clip-vit-large-patch14")))
+    ap.add_argument("--dino-model", type=str, default=str(eval_cfg.get("dino_model", "facebook/dinov2-base")))
+    ap.add_argument("--trigger", type=str, default=str(cfg.get("instance_prompt", "in sks_mithila style")))
     a = ap.parse_args()
-    score_all_checkpoints(eval_dir=a.eval_dir, train_dir=a.train_dir, prompts_file=a.prompts)
+    score_all_checkpoints(
+        eval_dir=a.eval_dir,
+        train_dir=a.train_dir,
+        prompts_file=a.prompts,
+        clip_model_id=a.clip_model,
+        dino_model_id=a.dino_model,
+        trigger_prefix=a.trigger,
+    )

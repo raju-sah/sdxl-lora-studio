@@ -19,6 +19,9 @@ from pathlib import Path
 
 from PIL import Image
 
+from lora_studio.config import load_config
+from lora_studio.prepare import trim_studio_margins
+
 USER_AGENT = "SDXLLoRAStudio/0.1 (https://github.com/raju-sah/sdxl-lora-studio; educational research)"
 
 COMMONS_CATEGORIES = [
@@ -228,9 +231,12 @@ def fetch_dataset(
                 if inset > 0.0:
                     cw, ch = rgb.size
                     box = (int(cw * inset), int(ch * inset), int(cw * (1.0 - inset)), int(ch * (1.0 - inset)))
-                    rgb = rgb.crop(box).resize((max(cw, min_side), max(ch, min_side)), Image.LANCZOS)
+                    rgb = rgb.crop(box)
+                rgb = trim_studio_margins(rgb)
                 if min(rgb.size) < min_side:
-                    continue
+                    cw, ch = rgb.size
+                    scale = min_side / max(1, min(cw, ch))
+                    rgb = rgb.resize((round(cw * scale), round(ch * scale)), Image.LANCZOS)
                 rgb.save(dest, format="JPEG", quality=95)
             with Image.open(dest) as check_im:
                 actual_w, actual_h = check_im.size
@@ -264,10 +270,12 @@ def fetch_dataset(
 
 
 if __name__ == "__main__":
+    cfg = load_config()
+    ds_cfg = cfg.get("dataset", {})
     ap = argparse.ArgumentParser(description="Fetch public-domain / CC Mithila (Madhubani) paintings.")
     ap.add_argument("--raw-dir", type=Path, default=Path("data/raw"), help="Directory to store raw images")
     ap.add_argument("--manifest", type=Path, default=Path("data/sources.csv"), help="CSV license manifest")
-    ap.add_argument("--limit", type=int, default=30, help="Max raw artworks to download")
-    ap.add_argument("--min-side", type=int, default=512, help="Minimum shortest side in pixels")
+    ap.add_argument("--limit", type=int, default=int(ds_cfg.get("target_count", 30)), help="Max raw artworks to download")
+    ap.add_argument("--min-side", type=int, default=int(ds_cfg.get("min_side", 512)), help="Minimum shortest side in pixels")
     a = ap.parse_args()
     fetch_dataset(a.raw_dir, a.manifest, limit=a.limit, min_side=a.min_side)

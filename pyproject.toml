@@ -7,7 +7,7 @@ dependencies = ["pillow", "pyyaml"]
 
 [project.optional-dependencies]
 train = ["diffusers", "transformers", "accelerate", "peft", "bitsandbytes", "torch"]
-eval = ["open_clip_torch", "torchmetrics"]
+eval = ["transformers>=4.45.0,<=4.48.3", "torch", "safetensors>=0.4.5"]
 demo = ["gradio"]
 dev = ["pytest", "ruff"]
 

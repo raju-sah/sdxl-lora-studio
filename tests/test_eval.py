@@ -1,7 +1,13 @@
 from PIL import Image
 
+from lora_studio.config import load_config
 from lora_studio.fetch import _strip_html
-from lora_studio.grid import load_prompts, stitch_checkpoint_grid
+from lora_studio.grid import (
+    load_prompts,
+    restitch_existing_grid,
+    stitch_checkpoint_grid,
+    wrap_prompt_label,
+)
 from lora_studio.metrics import (
     format_metrics_markdown,
     select_best_checkpoint,
@@ -50,3 +56,39 @@ def test_strip_trigger_and_select_best_checkpoint():
     md = format_metrics_markdown(mock_results, best_ckpt=1000)
     assert "ckpt-1000" in md
     assert "Selected Best" in md
+
+
+def test_config_and_restitch_grid(tmp_path):
+    cfg = load_config()
+    assert cfg["trigger"] == "sks_mithila"
+    assert cfg["rank"] == 32
+    assert cfg["hosting"]["hf_space_id"] == "raju-ai/sdxl-mithila-lora-demo"
+
+    wrapped = wrap_prompt_label(
+        "in sks_mithila style, two peacocks perched on a flowering kadamba tree branch",
+        row_idx=0,
+    )
+    assert wrapped.startswith("P1: two peacocks")
+    assert "\n" in wrapped
+
+    prompts = ["in sks_mithila style, two peacocks", "in sks_mithila style, astronaut on the moon"]
+    grid_imgs = {
+        "Base SDXL": [Image.new("RGB", (64, 64), (120, 10, 10)), Image.new("RGB", (64, 64), (10, 120, 10))],
+        "ckpt-250": [Image.new("RGB", (64, 64), (10, 10, 120)), Image.new("RGB", (64, 64), (120, 120, 10))],
+    }
+    grid_path = tmp_path / "checkpoint_grid.png"
+    stitch_checkpoint_grid(grid_imgs, prompts, tile_size=64, label_width=100, header_height=30).save(grid_path)
+
+    restitched = restitch_existing_grid(
+        grid_path,
+        prompts=prompts,
+        checkpoints=[0, 250],
+        tile_size=64,
+        label_width=100,
+        header_height=30,
+    )
+    assert restitched.size == (100 + 2 * 64, 30 + 2 * 64)
+    # Verify tile pixel colors were preserved losslessly
+    assert restitched.getpixel((100 + 32, 30 + 32)) == (120, 10, 10)
+    assert restitched.getpixel((100 + 64 + 32, 30 + 64 + 32)) == (120, 120, 10)
+

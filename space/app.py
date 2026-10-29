@@ -1,13 +1,25 @@
-"""Gradio demo for the SDXL Mithila / Madhubani Style LoRA on Hugging Face Spaces (ZeroGPU)."""
+"""Gradio demo for the SDXL Mithila / Madhubani Style LoRA on Hugging Face Spaces (ZeroGPU)
+with automatic fallback to ``enable_model_cpu_offload()`` on standard GPUs or CPU environments.
+"""
 
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
+from typing import Any
 
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 import gradio as gr
-import spaces
+
+try:
+    import spaces  # type: ignore[import-not-found]
+
+    _HAS_SPACES = True
+except ImportError:
+    spaces = None
+    _HAS_SPACES = False
+
 import torch
 from diffusers import (
     AutoencoderKL,
@@ -58,21 +70,46 @@ EXAMPLE_PROMPTS = [
     ],
 ]
 
-# Eager module-scope loading for ZeroGPU pipeline hijack
-vae = AutoencoderKL.from_pretrained(VAE_MODEL, torch_dtype=torch.float16)
-pipe = StableDiffusionXLPipeline.from_pretrained(
-    BASE_MODEL,
-    vae=vae,
-    torch_dtype=torch.float16,
-    variant="fp16",
-    use_safetensors=True,
-)
-pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config, use_karras_sigmas=True)
-try:
-    pipe.load_lora_weights(LORA_REPO)
-except (OSError, ValueError, RuntimeError) as exc:
-    print(f"Warning: could not load LoRA weights from {LORA_REPO}: {exc}")
-pipe.to("cuda")
+
+def _gpu_decorator(duration: int = 30) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    if _HAS_SPACES and spaces is not None:
+        return spaces.GPU(duration=duration)
+    return lambda fn: fn
+
+
+def _init_pipeline() -> StableDiffusionXLPipeline | None:
+    if os.environ.get("SKIP_MODEL_LOAD") == "1":
+        return None
+    is_zerogpu = _HAS_SPACES and bool(os.environ.get("SPACE_ID") or os.environ.get("SPACES_ZERO_GPU"))
+    has_cuda = torch.cuda.is_available() or is_zerogpu
+    dtype = torch.float16 if has_cuda else torch.float32
+
+    vae = AutoencoderKL.from_pretrained(VAE_MODEL, torch_dtype=dtype)
+    pipeline = StableDiffusionXLPipeline.from_pretrained(
+        BASE_MODEL,
+        vae=vae,
+        torch_dtype=dtype,
+        variant="fp16" if dtype == torch.float16 else None,
+        use_safetensors=True,
+    )
+    pipeline.scheduler = DPMSolverMultistepScheduler.from_config(
+        pipeline.scheduler.config,
+        use_karras_sigmas=True,
+    )
+    try:
+        pipeline.load_lora_weights(LORA_REPO)
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"Warning: could not load LoRA weights from {LORA_REPO}: {exc}")
+
+    if is_zerogpu:
+        # Eager module-scope .to("cuda") required for ZeroGPU tensor hijack
+        pipeline.to("cuda")
+    elif has_cuda:
+        pipeline.enable_model_cpu_offload()
+    return pipeline
+
+
+pipe = _init_pipeline()
 
 
 def ensure_trigger(prompt: str, auto_prepend: bool = True) -> str:
@@ -84,7 +121,7 @@ def ensure_trigger(prompt: str, auto_prepend: bool = True) -> str:
     return text
 
 
-@spaces.GPU(duration=30)
+@_gpu_decorator(duration=30)
 def generate_image(
     prompt: str,
     lora_scale: float = 0.85,
@@ -93,8 +130,15 @@ def generate_image(
     seed: int = 42,
     auto_trigger: bool = True,
 ):
+    global pipe
+    if pipe is None:
+        os.environ.pop("SKIP_MODEL_LOAD", None)
+        pipe = _init_pipeline()
+    assert pipe is not None
+
     full_prompt = ensure_trigger(prompt, auto_prepend=auto_trigger)
-    gen = torch.Generator(device="cuda").manual_seed(int(seed))
+    gen_device = "cuda" if torch.cuda.is_available() else "cpu"
+    gen = torch.Generator(device=gen_device).manual_seed(int(seed))
     img = pipe(
         prompt=full_prompt,
         num_inference_steps=int(steps),

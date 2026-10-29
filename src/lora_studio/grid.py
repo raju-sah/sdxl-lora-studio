@@ -3,6 +3,7 @@ and stitch a labeled Checkpoint x Prompt comparison sheet.
 
 Usage:
   python -m lora_studio.grid --lora-dir /kaggle/working/lora --prompts prompts/eval_prompts.txt --out-dir outputs/eval
+  python -m lora_studio.grid --restitch outputs/eval/checkpoint_grid.png --prompts prompts/eval_prompts.txt
 """
 
 from __future__ import annotations
@@ -11,6 +12,8 @@ import argparse
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
+
+from lora_studio.config import load_config
 
 
 def load_prompts(prompts_file: Path) -> list[str]:
@@ -22,6 +25,23 @@ def load_prompts(prompts_file: Path) -> list[str]:
     ]
 
 
+def wrap_prompt_label(prompt: str, row_idx: int, max_chars: int = 26, max_lines: int = 8) -> str:
+    """Strip the trigger prefix and word-wrap a prompt into compact lines for grid row headers."""
+    short_prompt = prompt.removeprefix("in sks_mithila style,").removeprefix("in sks_mithila style").strip()
+    words = short_prompt.split()
+    lines: list[str] = []
+    current = f"P{row_idx + 1}:"
+    for w in words:
+        if len(current) + len(w) + 1 <= max_chars:
+            current = f"{current} {w}".strip()
+        else:
+            lines.append(current)
+            current = w
+    if current:
+        lines.append(current)
+    return "\n".join(lines[:max_lines])
+
+
 def stitch_checkpoint_grid(
     grid_images: dict[str, list[Image.Image]],
     prompts: list[str],
@@ -29,7 +49,7 @@ def stitch_checkpoint_grid(
     label_width: int = 220,
     header_height: int = 44,
 ) -> Image.Image:
-    """Stitch a labeled table where columns are checkpoints (``Base``, ``250``, ...) and rows are prompts."""
+    """Stitch a labeled table where columns are checkpoints (``Base SDXL``, ``ckpt-250``, ...) and rows are prompts."""
     ckpt_names = list(grid_images.keys())
     n_cols = len(ckpt_names)
     n_rows = len(prompts)
@@ -45,24 +65,11 @@ def stitch_checkpoint_grid(
         x0 = label_width + col_idx * tile_size
         draw.text((x0 + 12, 14), ckpt_label, fill=(240, 240, 245), font=font)
 
-    # Draw rows (prompt label + tiles)
+    # Draw rows (wrapped prompt label + tiles)
     for row_idx, prompt in enumerate(prompts):
         y0 = header_height + row_idx * tile_size
-        short_prompt = prompt.removeprefix("in sks_mithila style,").removeprefix("in sks_mithila style").strip()
-        # Wrap prompt text into ~26-char lines
-        words = short_prompt.split()
-        lines: list[str] = []
-        current = ""
-        for w in words:
-            if len(current) + len(w) + 1 <= 26:
-                current = f"{current} {w}".strip()
-            else:
-                lines.append(current)
-                current = w
-        if current:
-            lines.append(current)
-        wrapped = "\n".join(lines[:8])
-        draw.text((10, y0 + 14), f"P{row_idx + 1}: {wrapped}", fill=(210, 215, 225), font=font)
+        wrapped = wrap_prompt_label(prompt, row_idx=row_idx)
+        draw.multiline_text((10, y0 + 14), wrapped, fill=(210, 215, 225), font=font, spacing=4)
 
         for col_idx, ckpt_label in enumerate(ckpt_names):
             imgs = grid_images[ckpt_label]
@@ -73,6 +80,41 @@ def stitch_checkpoint_grid(
             canvas.paste(tile, (x0, y0))
 
     return canvas
+
+
+def restitch_existing_grid(
+    grid_path: Path,
+    prompts: list[str],
+    checkpoints: list[int] | None = None,
+    tile_size: int = 256,
+    label_width: int = 220,
+    header_height: int = 44,
+) -> Image.Image:
+    """Extract lossless tiles from an existing ``checkpoint_grid.png`` and re-render with wrapped prompt labels."""
+    if checkpoints is None:
+        checkpoints = [0, 250, 500, 750, 1000, 1250, 1500]
+    with Image.open(grid_path) as existing:
+        rgb = existing.convert("RGB")
+        grid_images: dict[str, list[Image.Image]] = {}
+        for col_idx, ckpt in enumerate(checkpoints):
+            label = "Base SDXL" if ckpt == 0 else f"ckpt-{ckpt}"
+            x0 = label_width + col_idx * tile_size
+            if x0 + tile_size > rgb.width:
+                break
+            col_tiles: list[Image.Image] = []
+            for row_idx in range(len(prompts)):
+                y0 = header_height + row_idx * tile_size
+                if y0 + tile_size > rgb.height:
+                    break
+                col_tiles.append(rgb.crop((x0, y0, x0 + tile_size, y0 + tile_size)))
+            grid_images[label] = col_tiles
+    return stitch_checkpoint_grid(
+        grid_images,
+        prompts,
+        tile_size=tile_size,
+        label_width=label_width,
+        header_height=header_height,
+    )
 
 
 def make_grid(
@@ -86,6 +128,7 @@ def make_grid(
     vae_model: str = "madebyollin/sdxl-vae-fp16-fix",
     num_inference_steps: int = 25,
     guidance_scale: float = 7.5,
+    lora_scale: float = 0.85,
     tile_size: int = 256,
 ) -> Path:
     """Generate evaluation images for base SDXL + all checkpoints and save ``checkpoint_grid.png``."""
@@ -136,6 +179,7 @@ def make_grid(
             pipe.load_lora_weights(str(ckpt_path))
 
         grid_images[ckpt_label] = []
+        attn_kwargs = {"scale": float(lora_scale)} if ckpt > 0 else None
         for p_idx, prompt in enumerate(prompts):
             for seed in seeds:
                 img_path = ckpt_subdir / f"p{p_idx:02d}_s{seed}.png"
@@ -148,6 +192,7 @@ def make_grid(
                         num_inference_steps=num_inference_steps,
                         guidance_scale=guidance_scale,
                         generator=gen,
+                        cross_attention_kwargs=attn_kwargs,
                     ).images[0]
                     img.save(img_path)
                 if seed == grid_seed:
@@ -162,21 +207,47 @@ def make_grid(
 
 
 if __name__ == "__main__":
+    cfg = load_config()
+    eval_cfg = cfg.get("eval", {})
+    host_cfg = cfg.get("hosting", {})
     ap = argparse.ArgumentParser(description="Render Checkpoint x Prompt comparison grid.")
-    ap.add_argument("--lora-dir", type=Path, required=True, help="Directory containing checkpoint-N folders")
+    ap.add_argument("--lora-dir", type=Path, help="Directory containing checkpoint-N folders")
+    ap.add_argument("--restitch", type=Path, help="Re-stitch an existing checkpoint_grid.png with wrapped labels")
     ap.add_argument("--prompts", type=Path, default=Path("prompts/eval_prompts.txt"), help="Eval prompts file")
     ap.add_argument("--out-dir", type=Path, default=Path("outputs/eval"), help="Output directory for renders and grid")
-    ap.add_argument("--checkpoints", type=int, nargs="+", default=[0, 250, 500, 750, 1000, 1250, 1500])
-    ap.add_argument("--seeds", type=int, nargs="+", default=[0, 1])
-    ap.add_argument("--grid-seed", type=int, default=0)
-    ap.add_argument("--steps", type=int, default=25)
-    a = ap.parse_args()
-    make_grid(
-        lora_dir=a.lora_dir,
-        prompts_file=a.prompts,
-        out_dir=a.out_dir,
-        checkpoints=a.checkpoints,
-        seeds=a.seeds,
-        grid_seed=a.grid_seed,
-        num_inference_steps=a.steps,
+    ap.add_argument(
+        "--checkpoints",
+        type=int,
+        nargs="+",
+        default=list(eval_cfg.get("checkpoints", [0, 250, 500, 750, 1000, 1250, 1500])),
     )
+    ap.add_argument("--seeds", type=int, nargs="+", default=list(eval_cfg.get("seeds", [0, 1])))
+    ap.add_argument("--grid-seed", type=int, default=int(eval_cfg.get("grid_seed", 0)))
+    ap.add_argument("--steps", type=int, default=int(eval_cfg.get("num_inference_steps", 25)))
+    ap.add_argument("--guidance-scale", type=float, default=float(eval_cfg.get("guidance_scale", 7.5)))
+    ap.add_argument("--lora-scale", type=float, default=float(host_cfg.get("default_lora_scale", 0.85)))
+    a = ap.parse_args()
+    if a.restitch:
+        canvas = restitch_existing_grid(
+            a.restitch,
+            prompts=load_prompts(a.prompts),
+            checkpoints=a.checkpoints,
+        )
+        canvas.save(a.restitch)
+        print(f"re-stitched {a.restitch}")
+    else:
+        if a.lora_dir is None:
+            ap.error("--lora-dir is required unless --restitch is specified")
+        make_grid(
+            lora_dir=a.lora_dir,
+            prompts_file=a.prompts,
+            out_dir=a.out_dir,
+            checkpoints=a.checkpoints,
+            seeds=a.seeds,
+            grid_seed=a.grid_seed,
+            base_model=str(cfg.get("base_model", "stabilityai/stable-diffusion-xl-base-1.0")),
+            vae_model=str(cfg.get("vae", "madebyollin/sdxl-vae-fp16-fix")),
+            num_inference_steps=a.steps,
+            guidance_scale=a.guidance_scale,
+            lora_scale=a.lora_scale,
+        )

@@ -6,6 +6,7 @@ from lora_studio.prepare import (
     hamming_distance,
     prepare_dir,
     sharpness_score,
+    trim_studio_margins,
 )
 
 
@@ -52,3 +53,23 @@ def test_prepare_dir_dedupe_and_sharpness(tmp_path):
     out = prepare_dir(src, dst, size=256, dedupe=True, min_sharpness=5.0)
     assert len(out) == 2
     assert [p.name for p in out] == ["000.png", "001.png"]
+
+
+def test_trim_studio_margins_removes_calibration_bar_and_gutter():
+    # Create a 512x512 canvas with:
+    # - x=0..16: rainbow color calibration blocks
+    # - x=16..64: uniform white studio gutter (245, 245, 245)
+    # - x=64..512, y=0..512: full-bleed patterned artwork interior
+    artwork = Image.new("RGB", (512, 512), (245, 245, 245))
+    draw = ImageDraw.Draw(artwork)
+    for y_idx, color in enumerate([(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]):
+        draw.rectangle([0, y_idx * 128, 15, (y_idx + 1) * 128 - 1], fill=color)
+    for x in range(64, 512, 16):
+        for y in range(0, 512, 16):
+            c = ((x * 37 + y * 13) % 200, (x * 19 + y * 53) % 200, 120)
+            draw.rectangle([x, y, x + 15, y + 15], fill=c, outline=(20, 20, 20))
+
+    trimmed = trim_studio_margins(artwork)
+    assert trimmed.height == 512
+    assert 444 <= trimmed.width <= 450
+

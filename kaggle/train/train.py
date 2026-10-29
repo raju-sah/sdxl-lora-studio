@@ -267,6 +267,7 @@ def evaluate_checkpoints_inline(
             pipe.load_lora_weights(str(cpath))
 
         grid_images[label] = []
+        attn_kwargs = {"scale": 0.85} if ckpt > 0 else None
         for p_idx, prompt in enumerate(prompts):
             for seed in seeds:
                 out_png = cdir / f"p{p_idx:02d}_s{seed}.png"
@@ -274,7 +275,13 @@ def evaluate_checkpoints_inline(
                     im = Image.open(out_png).convert("RGB")
                 else:
                     gen = torch.Generator(device=device).manual_seed(seed)
-                    im = pipe(prompt=prompt, num_inference_steps=25, guidance_scale=7.5, generator=gen).images[0]
+                    im = pipe(
+                        prompt=prompt,
+                        num_inference_steps=25,
+                        guidance_scale=7.5,
+                        generator=gen,
+                        cross_attention_kwargs=attn_kwargs,
+                    ).images[0]
                     im.save(out_png)
                 if seed == seeds[0]:
                     grid_images[label].append(im)
@@ -284,7 +291,7 @@ def evaluate_checkpoints_inline(
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    # Stitch comparison grid
+    # Stitch comparison grid with wrapped prompt labels
     tile = 256
     label_w, header_h = 220, 44
     cols = list(grid_images.keys())
@@ -294,8 +301,18 @@ def evaluate_checkpoints_inline(
     for c_idx, cname in enumerate(cols):
         draw.text((label_w + c_idx * tile + 12, 14), cname, fill=(240, 240, 245), font=font)
     for r_idx, prompt in enumerate(prompts):
-        short_p = prompt.removeprefix("in sks_mithila style,").strip()
-        draw.text((10, header_h + r_idx * tile + 14), f"P{r_idx + 1}: {short_p[:28]}", fill=(210, 215, 225), font=font)
+        short_p = prompt.removeprefix("in sks_mithila style,").removeprefix("in sks_mithila style").strip()
+        words = short_p.split()
+        lines, cur = [], f"P{r_idx + 1}:"
+        for w in words:
+            if len(cur) + len(w) + 1 <= 26:
+                cur = f"{cur} {w}".strip()
+            else:
+                lines.append(cur)
+                cur = w
+        if cur:
+            lines.append(cur)
+        draw.multiline_text((10, header_h + r_idx * tile + 14), "\n".join(lines[:8]), fill=(210, 215, 225), font=font, spacing=4)
         for c_idx, cname in enumerate(cols):
             if r_idx < len(grid_images[cname]):
                 canvas.paste(
@@ -353,7 +370,15 @@ def evaluate_checkpoints_inline(
     lora_rows = [r for r in results if r["checkpoint"] > 0]
     peak_clip = max(r["clip_content_score"] for r in lora_rows)
     valid = [r for r in lora_rows if r["clip_content_score"] >= peak_clip - 0.025 and r["dino_max_nn"] <= 0.88] or lora_rows
-    best = max(valid, key=lambda r: 0.55 * r["clip_content_score"] + 0.45 * r["dino_style_similarity"])
+    c_vals = [r["clip_content_score"] for r in lora_rows]
+    d_vals = [r["dino_style_similarity"] for r in lora_rows]
+    c_min, c_span = min(c_vals), (max(c_vals) - min(c_vals)) or 1.0
+    d_min, d_span = min(d_vals), (max(d_vals) - min(d_vals)) or 1.0
+    best = max(
+        valid,
+        key=lambda r: 0.55 * ((r["clip_content_score"] - c_min) / c_span)
+        + 0.45 * ((r["dino_style_similarity"] - d_min) / d_span),
+    )
 
     summary = {"best_checkpoint": best["checkpoint"], "best_metrics": best, "checkpoints": results}
     (eval_dir / "metrics.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
