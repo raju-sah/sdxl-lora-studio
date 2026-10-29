@@ -9,7 +9,11 @@ os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 import gradio as gr
 import spaces
 import torch
-from diffusers import AutoencoderKL, DPMSolverMultistepScheduler, StableDiffusionXLPipeline
+from diffusers import (
+    AutoencoderKL,
+    DPMSolverMultistepScheduler,
+    StableDiffusionXLPipeline,
+)
 
 BASE_MODEL = os.environ.get("BASE_MODEL", "stabilityai/stable-diffusion-xl-base-1.0")
 VAE_MODEL = os.environ.get("VAE_MODEL", "madebyollin/sdxl-vae-fp16-fix")
