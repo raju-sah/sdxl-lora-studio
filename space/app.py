@@ -135,6 +135,7 @@ with gr.Blocks(title="SDXL Mithila / Madhubani Style LoRA") as demo:
         fn=generate_image,
         inputs=[prompt_in, lora_scale_in, steps_in, cfg_in, seed_in, auto_trig_in],
         outputs=img_out,
+        api_name="predict",
     )
 
 if __name__ == "__main__":
