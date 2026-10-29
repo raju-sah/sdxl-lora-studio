@@ -1,0 +1,9 @@
+git+https://github.com/huggingface/diffusers.git@v0.31.0
+transformers>=4.45.0,<=4.48.3
+accelerate>=1.0.0
+torch
+torchvision
+safetensors>=0.4.5
+gradio>=5.0.0
+spaces
+peft>=0.13.0
