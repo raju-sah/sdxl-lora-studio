@@ -8,7 +8,7 @@ sdk_version: 5.20.0
 app_file: app.py
 pinned: false
 license: creativeml-openrail-m
-short_description: Generate authentic Mithila (Madhubani) folk art images with SDXL
+short_description: Generate authentic Mithila folk art with SDXL
 ---
 
 # SDXL Mithila / Madhubani Style LoRA Demo
