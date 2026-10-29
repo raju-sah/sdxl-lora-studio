@@ -35,5 +35,5 @@ eval:
   guidance_scale: 7.5
 hosting:
   hf_model_id: raju-ai/sdxl-mithila-lora
-  hf_space_id: raju-ai/sdxl-mithila-lora-space
+  hf_space_id: raju-ai/sdxl-mithila-lora-demo
   default_lora_scale: 0.85
