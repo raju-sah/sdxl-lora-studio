@@ -3,7 +3,8 @@
 Training a **SDXL LoRA** for a custom subject/style from 15–40 images on a **free Kaggle T4**,
 with a reproducible checkpoint-comparison grid, CLIP/DINO metrics, and a Gradio demo.
 
-> Status: ✅ Trained & Evaluated — see [PLAN.md](PLAN.md) for roadmap and [NOTES.md](NOTES.md) for technical decision log.
+> **Hugging Face Model:** [🤗 `raju-ai/sdxl-mithila-lora`](https://huggingface.co/raju-ai/sdxl-mithila-lora)
+> Status: ✅ Trained, Evaluated & Released on HF Hub — see [PLAN.md](PLAN.md) for roadmap and [NOTES.md](NOTES.md) for technical decision log.
 
 ## Results
 

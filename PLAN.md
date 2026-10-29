@@ -57,7 +57,7 @@ own sketch style) from 10–50 images.
   ```
 - [x] 4. **Evaluate** (`grid.py`, `metrics.py`): fixed grid (6 prompts in `prompts/eval_prompts.txt` across 2 traditional, 2 regional, and 2 OOD scenes) at each checkpoint `250/500/750/1000/1250/1500` **and** base SDXL (`0`) without LoRA.
       Compute **CLIP content score** (prompt adherence with style prefix stripped) and **DINOv2 similarity** to training images (style fidelity) across 2 seeds `[0, 1]` (seed `0` for visual grid) to catch overfitting and pick the Pareto-optimal checkpoint. Winner: **`ckpt-750`** (CLIP `0.2666`, DINOv2 `0.3949`).
-- [ ] 5. **Host**: Upload best LoRA checkpoint to HF Hub (`raju-ai/sdxl-mithila-lora`) with model card + sample images; build Gradio Space demo (`space/app.py`, `@spaces.GPU` ZeroGPU with CPU-offload fallback and LoRA scale slider `0.0–1.2`).
+- [x] 5. **Host**: Upload best LoRA checkpoint to HF Hub ([`raju-ai/sdxl-mithila-lora`](https://huggingface.co/raju-ai/sdxl-mithila-lora)) with model card, widgets, and sample images. Build and deploy Gradio Space demo (`space/app.py`, `@spaces.GPU` ZeroGPU with CPU-offload fallback and LoRA scale slider `0.0–1.2`).
 
 ## Definition of done
 
